@@ -147,9 +147,10 @@ def download_range(website, start_chapter=None, end_chapter=None, download_all=F
     parent_directory = 'Downloads'
     output_folder = os.path.join(parent_directory, manga_name)
 
+    chapter_names = list(chapters.keys())
+    
     if show_chapter_names:
         print(manga_name + ' chapters:')
-        chapter_names = list(chapters.keys())
         for i, chapter in enumerate(chapters):
             print(f'{manga_len-i}. {chapter}')
 
