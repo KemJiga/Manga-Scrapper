@@ -78,24 +78,26 @@ def scrap(website):
 
         chapters[chapter_name] = img_srcs
 
-    export_json(manga_name, chapters)
-    return manga_name, chapters
+    export_json(manga_name, chapters, website, update=True)
 
-def export_json(manga_name, chapters):
+def export_json(manga_name, chapters, weblink, update=False):
     parent_directory = 'Downloads'
     output_folder = os.path.join(parent_directory, manga_name)
+    mangas_file = os.path.join(parent_directory, 'mangas.json')
     
-    #TODO: Implement a better way to handle this
-    # Remove the directory if it exists
-    if os.path.exists(output_folder):
-        shutil.rmtree(output_folder)
+    if update:
+        # Remove the directory if it exists
+        if os.path.exists(output_folder):
+            shutil.rmtree(output_folder)
     
     # Create the directory
     os.makedirs(output_folder, exist_ok=True)
 
-    chapter_img_list = os.path.join(output_folder, 'Chapters.json')
+    chapter_img_list = os.path.join(output_folder, f'{manga_name}.json')
     with open(chapter_img_list, 'w') as file:
         json.dump(chapters, file, indent=4)
+    with open(mangas_file, 'w') as file:
+        json.dump({manga_name: weblink}, file, indent=4)
 
 @time_wrapper
 def download_all_chapters(manga_name, chapters):
@@ -129,8 +131,17 @@ def download_all_chapters(manga_name, chapters):
         printProgressBar(downloading_chapter, chapter_len, prefix = 'Progress:', suffix = 'Complete', length = 50)
 
 @time_wrapper
-def download_range(website, start_chapter=None, end_chapter=None, download_all=False, show_chapter_names=False):
-    manga_name, chapters = scrap(website)
+def download_range(website, start_chapter=None, end_chapter=None, download_all=False, show_chapter_names=False, update=False):
+    if update:
+        scrap(website)
+        
+    mangas_file = os.path.join('Downloads', 'mangas.json')
+    with open(mangas_file, 'r') as file:
+        mangas = json.load(file)
+    manga_name = list(mangas.keys())[0]
+    with open(os.path.join('Downloads', manga_name, f'{manga_name}.json'), 'r') as file:
+        chapters = json.load(file)
+
     manga_len = len(chapters)
     
     parent_directory = 'Downloads'
@@ -181,8 +192,17 @@ def download_range(website, start_chapter=None, end_chapter=None, download_all=F
 
             printProgressBar(i+1, len(img_srcs), prefix = 'Progress:', suffix = 'Complete', length = 50)
 
-def search_manga(website):
-    manga_name, chapters = scrap(website)
+def search_manga(website, update=False):
+    if update:
+        scrap(website)
+    
+    mangas_file = os.path.join('Downloads', 'mangas.json')
+    with open(mangas_file, 'r') as file:
+        mangas = json.load(file)
+    manga_name = list(mangas.keys())[0]
+    with open(os.path.join('Downloads', manga_name, f'{manga_name}.json'), 'r') as file:
+        chapters = json.load(file)
+
     manga_len = len(chapters)
 
     print('\n' + manga_name + ' chapters:')
@@ -195,9 +215,10 @@ def main():
     parser.add_argument('url', type=str, help='The URL of the manga to download')
     parser.add_argument('--start', type=int, help='The starting chapter number')
     parser.add_argument('--end', type=int, help='The ending chapter number')
-    parser.add_argument('--names', action='store_true', help='Show chapters names')
     parser.add_argument('--search', action='store_true', help='Search for all chapters of the manga')
     parser.add_argument('--all', action='store_true', help='Download all chapters')
+    parser.add_argument('--names', action='store_true', help='Show chapters names')
+    parser.add_argument('--update', action='store_true', help='Update the chapters list')
 
     args = parser.parse_args()
 
@@ -207,7 +228,20 @@ def main():
     if args.start and args.end and args.start > args.end:
         print('The start chapter number should be less than the end chapter number')
         return
+    if not args.update:
+        if os.path.exists('Downloads/mangas.json'):
+            with open('Downloads/mangas.json', 'r') as file:
+                mangas = json.load(file)
+            if args.url not in mangas.values():
+                print('URL does not exist in mangas.json. execute the script with --update flag')
+                return
+        else:
+            print('mangas.json file does not exist. execute the script with --update flag')
+            return
     
+    if args.update:
+        scrap(args.url)
+        return
     if args.search:
         search_manga(args.url)
         return
@@ -215,7 +249,7 @@ def main():
         download_range(args.url, download_all=True)
         return
     else:
-        download_range(args.url, start_chapter=args.start, end_chapter=args.end)
+        download_range(args.url, start_chapter=args.start, end_chapter=args.end, show_chapter_names=args.names, update=args.update)
         return
 
 if __name__ == '__main__':
