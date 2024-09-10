@@ -4,6 +4,7 @@ import requests
 import json
 import os
 import re
+from utils import reverse_order_dict
 
 def timer(func):
     import time
@@ -16,12 +17,12 @@ def timer(func):
         return result
     return wrapper
 
-def clean_manga_name(folder_name):
+def clean_manga_name(folder_name:str):
     pattern = r'[<>:"/\\|?*\x00-\x1F]'
     return re.sub(pattern, '', folder_name)
 
 @timer
-def scrap(website):
+async def scrape(website:str):
     response = requests.get(website)
     content = response.text
     soup = BeautifulSoup(content, 'lxml')
@@ -37,24 +38,14 @@ def scrap(website):
     for chapter in chapter_list:
         chapter_name = chapter.a['title']
         chapter_link = chapter.a['href']
-
-        # result = requests.get(chapter_link)
-        # chapter_content = result.text
-
-        # chapter_soup = BeautifulSoup(chapter_content, 'lxml')
-        
-        # img_container = chapter_soup.find('div', class_='container-chapter-reader')
-        # img_list = img_container.find_all('img')
-
-
-        # img_srcs = list(map(lambda img: img['src'], img_list))
-
         chapters[chapter_name] = chapter_link
-    
-    export_chapters(manga_name, chapters)
-    return chapters
 
-def export_chapters(manga_name, chapters):
+    reverse_chapters = reverse_order_dict(chapters)
+    
+    export_chapters(manga_name, reverse_chapters)
+    return reverse_chapters
+
+def export_chapters(manga_name:str, chapters):
     parent_directory = 'Downloads'
     output_folder = os.path.join(parent_directory, manga_name)
     
@@ -66,7 +57,7 @@ def export_chapters(manga_name, chapters):
         json.dump(chapters, file, indent=4)
 
 @timer
-def download_chapter(chapter_link:str, chapter_name:int, output_folder:str):
+async def download_chapter(chapter_link:str, chapter_name:int, output_folder:str):
     chapter_folder = os.path.join(output_folder, chapter_name)
     os.makedirs(chapter_folder, exist_ok=True)
 
@@ -76,22 +67,28 @@ def download_chapter(chapter_link:str, chapter_name:int, output_folder:str):
         
     print(f'Downloading {chapter_name}...')
 
-    load_chapter = requests.get(chapter_link)
-    chapter_content = load_chapter.text
-    soup = BeautifulSoup(chapter_content, 'lxml')
+    try:
+        load_chapter = requests.get(chapter_link)
+        chapter_content = load_chapter.text
+        soup = BeautifulSoup(chapter_content, 'lxml')
 
-    img_list = soup.find('div', class_='container-chapter-reader').find_all('img')
-    img_srcs = list(map(lambda img: img['src'], img_list))
+        img_list = soup.find('div', class_='container-chapter-reader').find_all('img')
+        img_srcs = list(map(lambda img: img['src'], img_list))
 
-    for i, img_src in enumerate(img_srcs):
-        img_response = requests.get(img_src, headers=headers)
-        img_content = img_response.content
+        for i, img_src in enumerate(img_srcs):
+            img_response = requests.get(img_src, headers=headers)
+            img_content = img_response.content
 
-        img_name = f'{i+1}.jpg'
-        img_path = os.path.join(chapter_folder, img_name)
+            img_name = f'{i+1}.jpg'
+            img_path = os.path.join(chapter_folder, img_name)
 
-        with open(img_path, 'wb') as file:
-            file.write(img_content)
+            with open(img_path, 'wb') as file:
+                file.write(img_content)
+        return {'code': 200, 'message': 'Chapter downloaded successfully', 'folder': chapter_folder}
+    except Exception as e:
+        print(f'Error: {e}')
+        shutil.rmtree(chapter_folder)
+        return {'code': 500, 'message': str(e)}
 
 def search_yellow_pages(manga_name:str):
     manga_directory = os.path.join('Downloads', 'manga_yellow_pages.json')
@@ -120,9 +117,9 @@ def from_yellow_pages(manga_name:str):
             mangas = json.load(file)
             if manga_name in mangas:
                 print(f'returning {mangas[manga_name]} from yellow pages')
-                return mangas[manga_name]
-            return {'code': 404, 'message': 'Manga not found'}
-    return {'code': 404, 'message': 'Manga not found'}
+                return {'code': 200, 'mangas': mangas[manga_name]}
+            return {'code': 404, 'message': 'Manga not in yellow pages'}
+    return {'code': 404, 'message': 'Manga not in yellow pages'}
 
 def add_yellow_pages(manga_name:str, manga_info:dict):
     manga_directory = os.path.join('Downloads', 'manga_yellow_pages.json')
@@ -135,7 +132,7 @@ def add_yellow_pages(manga_name:str, manga_info:dict):
             json.dump(mangas, file, indent=4)
 
 @timer
-def search_by_name(manga_name:str):
+async def search_by_name(manga_name:str):
     if search_yellow_pages(manga_name):
         return from_yellow_pages(manga_name)
 
@@ -172,16 +169,14 @@ def search_by_name(manga_name:str):
     return {'code': 200, 'mangas': mangas}
 
 def main():
-    # result = search_by_name('kijima-san to yamada-san')
-    # mangas = result['mangas']
+    result = search_by_name('sono bisque doll')
+    mangas = result['mangas']
 
-    # manga_titles = list(mangas.keys())
-    # first_manga_title = manga_titles[0]
-    # first_manga_src = mangas[first_manga_title]['src']
+    manga_titles = list(mangas.keys())
+    first_manga_title = manga_titles[0]
+    first_manga_src = mangas[first_manga_title]['src']
 
-    # scrap(first_manga_src)
-    output_folder = os.path.join('Downloads', 'Kijima-San To Yamada-San')
-    download_chapter("https://chapmanganato.to/manga-ix985680/chapter-1", 'Chapter 1', output_folder)
+    scrape(first_manga_src)
 
 if __name__ == '__main__':
     main()
