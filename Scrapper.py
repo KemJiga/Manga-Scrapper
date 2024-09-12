@@ -41,7 +41,23 @@ async def scrape(website:str):
         chapters[chapter_name] = chapter_link
 
     reverse_chapters = reverse_order_dict(chapters)
+
+    description = soup.find('div', class_='panel-story-info-description').text.split('Description :')[1].strip()
+    img = soup.find('img', class_='img-loading')['src']
+    genres = list(map(lambda genre: genre.text, soup.find('table', class_='variations-tableInfo').find_all('a')))
+    author = genres.pop(0)
+
+    manga_info = {
+        'author': author,
+        'name': manga_name,
+        'genres': genres,
+        'description': description,
+        'src': website,
+        'img': img,
+        'chapters': reverse_chapters
+    }
     
+    update_visited_manga(manga_name, manga_info)
     export_chapters(manga_name, reverse_chapters)
     return reverse_chapters
 
@@ -168,15 +184,30 @@ async def search_by_name(manga_name:str):
     add_yellow_pages(manga_name, mangas)
     return {'code': 200, 'mangas': mangas}
 
-def main():
-    result = search_by_name('sono bisque doll')
+@timer
+def update_visited_manga(manga_name:str, manga_info:dict):
+    visited_directory = os.path.join('Downloads', 'visited_manga.json')
+
+    if os.path.exists(visited_directory):
+        with open(visited_directory, 'r') as file:
+            visited_manga = json.load(file)
+            visited_manga[manga_name] = manga_info
+        with open(visited_directory, 'w') as file:
+            json.dump(visited_manga, file, indent=4)
+    else:
+        with open(visited_directory, 'w') as file:
+            json.dump({manga_name: manga_info}, file, indent=4)
+
+async def main():
+    result = await search_by_name('one piece')
     mangas = result['mangas']
 
     manga_titles = list(mangas.keys())
     first_manga_title = manga_titles[0]
     first_manga_src = mangas[first_manga_title]['src']
 
-    scrape(first_manga_src)
+    await scrape(first_manga_src)
 
 if __name__ == '__main__':
-    main()
+    import asyncio
+    asyncio.run(main())
