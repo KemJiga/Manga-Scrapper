@@ -6,7 +6,7 @@ def search_by_accuracy(search_term, titles_dict):
     titles = list(titles_dict.keys())
     
     # Find the closest match
-    closest_matches = difflib.get_close_matches(search_term, titles, n=1, cutoff=0.6)
+    closest_matches = difflib.get_close_matches(search_term, titles, n=1, cutoff=0.5)
     
     # Return the closest match if found, otherwise return None
     if closest_matches:
