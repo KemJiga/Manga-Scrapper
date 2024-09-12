@@ -1,10 +1,12 @@
 import json, os
 from werkzeug.wsgi import FileWrapper
 from flask import Flask, jsonify, request, send_file, Response
+from flask_cors import CORS
 from Scrapper import search_by_name, download_chapter, scrape
 from utils import search_by_accuracy, zip_specific_folder
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/search/', methods=['GET'])
 async def search_manga():
@@ -32,7 +34,7 @@ async def search_chapters():
     if not confirm_name:
         return jsonify({'message': 'Manga not found in yellow pages'}), 404
     
-    input_title = mangas[manga_name]
+    input_title = mangas[confirm_name]
     manga_titles = list(input_title.keys())
     first_manga_title = manga_titles[offset]
     first_manga_src = input_title[first_manga_title]['src']
@@ -83,6 +85,18 @@ def get_img():
     }
     
     return Response(file_wrapper, mimetype='application/zip', direct_passthrough=True, headers=headers)
+
+@app.route('/get_manga_info/', methods=['GET'])
+def get_manga_info():
+    manga_name = request.args.get('manga_name')
+    with open('Downloads/visited_manga.json', 'r') as file:
+        mangas = json.load(file)
+        confirm_name = search_by_accuracy(manga_name, mangas)
+    
+    if not confirm_name:
+        return jsonify({'message': 'Manga has not been visited'}), 404
+    
+    return jsonify(mangas[confirm_name]), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
