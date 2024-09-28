@@ -1,4 +1,5 @@
 import shutil
+import time
 from bs4 import BeautifulSoup
 import requests
 import json
@@ -43,7 +44,7 @@ async def scrape(website:str):
     reverse_chapters = reverse_order_dict(chapters)
 
     description = soup.find('div', class_='panel-story-info-description').text.split('Description :')[1].strip()
-    img = soup.find('img', class_='img-loading')['src']
+    img = soup.find('img', attrs={'class': 'img-loading', 'alt': manga_name})['src']
     genres = list(map(lambda genre: genre.text, soup.find('table', class_='variations-tableInfo').find_all('a')))
     author = genres.pop(0)
 
@@ -199,14 +200,14 @@ def update_visited_manga(manga_name:str, manga_info:dict):
             json.dump({manga_name: manga_info}, file, indent=4)
 
 async def main():
-    result = await search_by_name('one piece')
-    mangas = result['mangas']
+    # result = await search_by_name('one piece')
+    # mangas = result['mangas']
 
-    manga_titles = list(mangas.keys())
-    first_manga_title = manga_titles[0]
-    first_manga_src = mangas[first_manga_title]['src']
+    # manga_titles = list(mangas.keys())
+    # first_manga_title = manga_titles[0]
+    # first_manga_src = mangas[first_manga_title]['src']
 
-    await scrape(first_manga_src)
+    await scrape('https://manganato.com/manga-tn996848')
 
 if __name__ == '__main__':
     import asyncio
