@@ -121,6 +121,7 @@ def search_yellow_pages(manga_name:str):
                 return True
             return False
     else:
+        os.makedirs('Downloads', exist_ok=True)
         with open(manga_directory, 'w') as file:
             json.dump({}, file, indent=4)
         search_yellow_pages(manga_name)
@@ -133,7 +134,6 @@ def from_yellow_pages(manga_name:str):
         with open(manga_directory, 'r') as file:
             mangas = json.load(file)
             if manga_name in mangas:
-                print(f'returning {mangas[manga_name]} from yellow pages')
                 return {'code': 200, 'mangas': mangas[manga_name]}
             return {'code': 404, 'message': 'Manga not in yellow pages'}
     return {'code': 404, 'message': 'Manga not in yellow pages'}
@@ -169,18 +169,53 @@ async def search_by_name(manga_name:str):
 
     manga_list = results.find_all('div', class_='search-story-item', limit=3)
 
-    mangas = {}
+    mangas = []
     
     for manga in manga_list:
-        left = manga.find('a', class_='item-img bookmark_check')
-        src = left['href']
-        title = left['title']
-        img = left.img['src']
-        m = {
-            'src': src,
-            'img': img
-        }
-        mangas[title] = m
+        try:
+            left = manga.find('a', class_='item-img bookmark_check')
+            src = left['href']
+            title = left['title']
+            img = left.img['src']
+            authors = manga.find('span', class_='text-nowrap item-author').text.split(',')
+            updatedAt = manga.find('span', class_='text-nowrap item-time').text
+
+            response = requests.get(src)
+            content = response.text
+            soup = BeautifulSoup(content, 'lxml')
+
+            description = soup.find('div', class_='panel-story-info-description').text.split('Description :')[1].strip()
+            chapter_list = soup.find('ul', class_='row-content-chapter')
+            chapter_list = chapter_list.find_all('li')
+
+            chapters = {}
+            print(f'Scraping {manga_name}...')
+            for chapter in chapter_list:
+                chapter_name = chapter.a['title']
+                chapter_link = chapter.a['href']
+                chapters[chapter_name] = chapter_link
+
+            reverse_chapters = reverse_order_dict(chapters)
+            genres = list(map(lambda genre: genre.text, soup.find('table', class_='variations-tableInfo').find_all('a')))
+            for i in range(len(authors)):
+                genres.pop(0)
+            
+
+            m = {
+                'title': title,
+                'author': authors,
+                'genres': genres,
+                'description': description,
+                'src': src,
+                'img': img,
+                'chapters': reverse_chapters,
+                'updatedAt': updatedAt,
+            }
+            #print(m)
+            mangas.append(m)
+        except Exception as e:
+            print(f'Error: {e}')
+            continue
     
     add_yellow_pages(manga_name, mangas)
     return {'code': 200, 'mangas': mangas}
@@ -196,6 +231,7 @@ def update_visited_manga(manga_name:str, manga_info:dict):
         with open(visited_directory, 'w') as file:
             json.dump(visited_manga, file, indent=4)
     else:
+        os.makedirs('Downloads', exist_ok=True)
         with open(visited_directory, 'w') as file:
             json.dump({manga_name: manga_info}, file, indent=4)
 
